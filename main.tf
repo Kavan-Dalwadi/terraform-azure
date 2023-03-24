@@ -252,8 +252,12 @@ resource "azurerm_kubernetes_cluster" "example" {
 
   ingress_application_gateway {
     gateway_name = "rx4-ingress"
-    subnet_id    = azurerm_subnet.rx4-ingress-subnet.id
-    # subnet_cidr = "10.225.0.0/16"
+    # subnet_id    = azurerm_subnet.rx4-ingress-subnet.id
+    subnet_cidr = "10.225.0.0/16"
+  }
+
+  key_vault_secrets_provider {
+    secret_rotation_enabled = true 
   }
 
   identity {
