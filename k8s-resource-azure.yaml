@@ -1,0 +1,177 @@
+apiVersion: apps/v1 
+kind: Deployment 
+metadata:
+  name: apache-app
+  namespace: default 
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: apache
+  template:
+    metadata:
+      labels:
+        app: apache
+    spec:
+      containers:
+      - name: apache-app
+        image: httpd:alpine
+        ports:
+        - containerPort: 80
+      #   volumeMounts:
+      #   - name: aks-ingress-tls-demo
+      #     mountPath: "/mnt/secrets-store"
+      #     readOnly: true
+      # volumes:
+      # - name: aks-ingress-tls-demo
+      #   csi:
+      #     driver: secrets-store.csi.k8s.io
+      #     readOnly: true
+      #     volumeAttributes:
+      #       secretProviderClass: aks-ingress-spc   # Provide reference to Secret Provider Class
+          # nodePublishSecretRef:
+          #   name: secrets-store-creds
+
+--- 
+apiVersion: v1 
+kind: Service 
+metadata:
+  name: apache-svc
+  namespace: default
+  labels: 
+    app: apache
+spec:
+  type: NodePort
+  ports:
+  - port: 80
+    targetPort: 80
+    protocol: TCP
+  selector:
+    app: apache
+---
+apiVersion: apps/v1 
+kind: Deployment 
+metadata:
+  name: nginx-app
+  namespace: default 
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nginx
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      containers:
+      - name: nginx-app
+        image: nginx:alpine
+        ports:
+        - containerPort: 80
+      #   volumeMounts:
+      #   - name: aks-ingress-tls-demo
+      #     mountPath: "/mnt/secrets-store"
+      #     readOnly: true
+      # volumes:
+      # - name: aks-ingress-tls-demo
+      #   csi:
+      #     driver: secrets-store.csi.k8s.io
+      #     readOnly: true
+      #     volumeAttributes:
+      #       secretProviderClass: aks-ingress-spc   # Provide reference to Secret Provider Class
+          # nodePublishSecretRef:
+          #   name: secrets-store-creds
+
+--- 
+apiVersion: v1 
+kind: Service 
+metadata:
+  name: nginx-svc
+  namespace: default
+  labels: 
+    app: nginx
+spec:
+  type: NodePort
+  ports:
+  - port: 80
+    targetPort: 80
+    protocol: TCP
+  selector:
+    app: nginx
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: rx4-dev-ing
+  annotations:
+    kubernetes.io/ingress.class: azure/application-gateway
+    appgw.ingress.kubernetes.io/ssl-redirect: "true"
+#    appgw.ingress.kubernetes.io/appgw-ssl-certificate: "manhar"
+spec:
+  tls:
+  - hosts:
+    - apache.in.manhar.cloud
+    - nginx.in.manhar.cloud
+    secretName: aks-ingress-tls
+  rules:
+  - host: apache.in.manhar.cloud
+    http:
+      paths:
+      - path: /*
+        backend:
+          service:
+            name: apache-svc
+            port:
+              number: 80
+        pathType: Exact
+  - host: nginx.in.manhar.cloud
+    http:
+      paths:
+      - path: /*
+        backend:
+          service:
+            name: nginx-svc
+            port:
+              number: 80
+        pathType: Exact
+---
+apiVersion: secrets-store.csi.x-k8s.io/v1
+kind: SecretProviderClass
+metadata:
+  name: aks-ingress-spc
+spec:
+  provider: azure
+  secretObjects:                               
+  # - secretName: aks-ingress-tls
+  #   type: kubernetes.io/tls
+  #   data: 
+  #   - objectName: manhar-local
+  #     key: tls.key
+  #   - objectName: manhar-local
+  #     key: tls.crt
+  - secretName: aks-ingress-tls
+    type: kubernetes.io/tls
+    data: 
+    - objectName: manhar-wildcard
+      key: tls.key
+    - objectName: manhar-wildcard
+      key: tls.crt
+  parameters:
+    usePodIdentity: "false"                                        
+    useVMManagedIdentity: "true"                                   
+    userAssignedIdentityID: ""        # Empty string will use default identity, e.g. 75fb9acd-5ccc-4377-b213-0e52147c9408
+    keyvaultName: "allstartsdeveloperteam"                                     
+    cloudName: "AzurePublicCloud"                                  
+    objects:  |
+      array:
+        - |
+          objectName: usename
+          objectType: secret
+        - |
+          objectName: manhar-local
+          objectType: secret
+        - |
+          objectName: manhar-wildcard
+          objectType: secret
+    tenantId: "dfe8ca06-3dfb-48d1-8a3a-8dc20fc62243"        

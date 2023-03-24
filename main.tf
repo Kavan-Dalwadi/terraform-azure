@@ -14,192 +14,19 @@ provider "azurerm" {
   skip_provider_registration = true
 }
 
-variable "subscription_id" {
-  type    = string
-  default = "8dacc1dd-f4ac-4194-a38f-8d4b6e81427a"
-}
-
-variable "location" {
-  type    = string
-  default = "Central India"
-}
-
-variable "zone_1" {
-  type    = number
-  default = 1
-}
-
-variable "zone_2" {
-  type    = number
-  default = 2
-}
-
-variable "zone_3" {
-  type    = number
-  default = 3
-}
-
-variable "resource_group_name" {
-  type    = string
-  default = "terraform-resource-group"
-}
-
-variable "kubernetes_version" {
-  type    = string
-  default = "1.24.9" # default version as per March 2023
-}
-
-variable "sku_tier" {
-  type    = string
-  default = "Free"
-}
-
 
 # resource "azurerm_resource_group" "terraform-aks-managed-rg" {
 #   name     = "terraform-aks-managed-rg"
-#   location = "Central India"
+#   location = var.location
 # }
 
-resource "azurerm_network_security_group" "demo1" {
-  name                = "terraform"
+module "vnet" {
+  source = "./modules/vnet"
+
   location            = var.location
   resource_group_name = var.resource_group_name
-
-  security_rule {
-    name                       = "terraform123"
-    priority                   = 100
-    direction                  = "Inbound"
-    access                     = "Allow"
-    protocol                   = "Tcp"
-    source_port_range          = "*"
-    destination_port_range     = "22"
-    source_address_prefix      = "120.72.93.91/32"
-    destination_address_prefix = "*"
-  }
-
-  tags = {
-    environment = "Dev"
-  }
+  azure_public_ip_sku = var.azure_public_ip_sku
 }
-
-resource "azurerm_virtual_network" "example" {
-  name                = "example-network"
-  location            = var.location
-  resource_group_name = var.resource_group_name
-  address_space       = ["10.224.0.0/12"]
-  dns_servers         = ["10.224.0.2", "10.224.0.3"]
-
-  tags = {
-    environment = "Dev"
-  }
-}
-
-# resource "azurerm_subnet" "private1" {
-#   name                 = "private-subnet1"
-#   resource_group_name  = var.resource_group_name
-#   virtual_network_name = azurerm_virtual_network.example.name
-#   address_prefixes     = ["10.0.1.0/24"]
-# }
-
-
-#############---------------Public Subnet-1------------------_################
-resource "azurerm_subnet" "aks-subnet" {
-  name                 = "aks-subnet"
-  resource_group_name  = var.resource_group_name
-  virtual_network_name = azurerm_virtual_network.example.name
-  address_prefixes     = ["10.224.0.0/16"]
-}
-resource "azurerm_route_table" "aks-subnet" {
-  name                          = "aks-subnet-rt"
-  location                      = var.location
-  resource_group_name           = var.resource_group_name
-  disable_bgp_route_propagation = false
-
-  route {
-    name           = "internet"
-    address_prefix = "0.0.0.0/0"
-    next_hop_type  = "Internet"
-  }
-
-  route {
-    name           = "local"
-    address_prefix = "10.224.0.0/12"
-    next_hop_type  = "VnetLocal"
-  }
-
-  tags = {
-    environment = "Dev"
-  }
-}
-
-resource "azurerm_subnet_route_table_association" "public1" {
-  subnet_id      = azurerm_subnet.aks-subnet.id
-  route_table_id = azurerm_route_table.aks-subnet.id
-}
-
-#############---------------Private Subnet-2 ------------------_################
-# resource "azurerm_subnet" "private2" {
-#   name                 = "private-subnet2"
-#   resource_group_name  = var.resource_group_name
-#   virtual_network_name = azurerm_virtual_network.example.name
-#   address_prefixes     = ["10.0.3.0/24"]
-# }
-
-
-#############---------------Public Subnet-2 ------------------_################
-resource "azurerm_subnet" "rx4-ingress-subnet" {
-  name                 = "rx4-ingress-subnet"
-  resource_group_name  = var.resource_group_name
-  virtual_network_name = azurerm_virtual_network.example.name
-  address_prefixes     = ["10.225.0.0/16"]
-}
-
-resource "azurerm_route_table" "rx4-ingress" {
-  name                          = "rx4-ingress-rt"
-  location                      = var.location
-  resource_group_name           = var.resource_group_name
-  disable_bgp_route_propagation = false
-
-  # route {
-  #   name           = "internet"
-  #   address_prefix = "0.0.0.0/0"
-  #   next_hop_type  = "Internet"
-  # }
-
-  # route {
-  #   name           = "local"
-  #   address_prefix = "10.224.0.0/12"
-  #   next_hop_type  = "VnetLocal"
-  # }
-
-  tags = {
-    environment = "Dev"
-  }
-}
-
-resource "azurerm_subnet_route_table_association" "public2" {
-  subnet_id      = azurerm_subnet.rx4-ingress-subnet.id
-  route_table_id = azurerm_route_table.rx4-ingress.id
-}
-
-resource "azurerm_public_ip" "example" {
-  name                = "examplepip"
-  location            = var.location
-  resource_group_name = var.resource_group_name
-  allocation_method   = "Static"
-  sku                 = "Standard"
-}
-
-# resource "azurerm_bastion_host" "example" {
-#   name                = "examplebastion"
-#   location            = var.location
-#   resource_group_name = var.resource_group_name
-#   ip_configuration {
-#     name                 = "configuration"
-#     subnet_id            = azurerm_subnet.public1.id
-#     public_ip_address_id = azurerm_public_ip.example.id
-#   }
-# }
 
 
 resource "azurerm_public_ip_prefix" "example" {
@@ -257,7 +84,7 @@ resource "azurerm_kubernetes_cluster" "example" {
   }
 
   key_vault_secrets_provider {
-    secret_rotation_enabled = true 
+    secret_rotation_enabled = true
   }
 
   identity {
